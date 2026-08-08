@@ -11,7 +11,7 @@ dnf -y install git nginx certbot python3-certbot-nginx
 # daemon and bounce every running container, so only install if it is absent.
 if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
   echo "docker $(docker --version) and compose already present, leaving them alone"
-  echo "COMPOSE=docker compose" >/etc/minerva-compose.env
+  echo 'COMPOSE="docker compose"' >/etc/minerva-compose.env
 else
   cat >/etc/yum.repos.d/docker-ce.repo <<'EOF'
 [docker-ce-stable]
@@ -23,13 +23,13 @@ gpgkey=https://download.docker.com/linux/centos/gpg
 EOF
   if dnf -y install docker-ce docker-ce-cli containerd.io docker-compose-plugin; then
     systemctl enable --now docker
-    echo "COMPOSE=docker compose" >/etc/minerva-compose.env
+    echo 'COMPOSE="docker compose"' >/etc/minerva-compose.env
   else
     echo "docker-ce has no package for this release; falling back to podman"
     rm -f /etc/yum.repos.d/docker-ce.repo
     dnf -y install podman podman-compose
     systemctl enable --now podman.socket
-    echo "COMPOSE=podman-compose" >/etc/minerva-compose.env
+    echo 'COMPOSE="podman-compose"' >/etc/minerva-compose.env
   fi
 fi
 
