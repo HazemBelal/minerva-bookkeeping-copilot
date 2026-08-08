@@ -1,0 +1,11 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+node_modules/
+.next/
+data/
+backend/runs/
+!backend/runs/golden/
+.pytest_cache/
