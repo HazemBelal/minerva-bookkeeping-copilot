@@ -2,6 +2,16 @@ import type { ActivityItem, RunEvent, RunState, Row } from "./types";
 
 const ACTIVITY_CAP = 300;
 
+// The plan event's `payload.rows` shape is knowable (it's what the reducer
+// below actually reads), so it gets a real interface instead of `any`.
+interface PlanRowInput {
+  id: number;
+  date: string;
+  description: string;
+  amount: number;
+  merchant_key: string;
+}
+
 export function initialRunState(): RunState {
   return {
     runId: null,
@@ -27,7 +37,8 @@ export function runReducer(state: RunState, event: RunEvent): RunState {
 
   switch (event.type) {
     case "plan": {
-      const rows: Row[] = (p.rows ?? []).map((r: any) => ({
+      const planRows = (p.rows ?? []) as PlanRowInput[];
+      const rows: Row[] = planRows.map((r) => ({
         id: r.id,
         date: r.date,
         description: r.description,
@@ -92,7 +103,7 @@ export function runReducer(state: RunState, event: RunEvent): RunState {
     }
 
     case "screenshot": {
-      return { ...base, screenshotUrl: p.url, screenshotLabel: p.label ?? null };
+      return { ...base, screenshotUrl: p.url ?? null, screenshotLabel: p.label ?? null };
     }
 
     case "error": {

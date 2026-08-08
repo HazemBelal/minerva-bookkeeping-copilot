@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { initialRunState, runReducer } from "@/lib/runReducer";
 import type { RunEvent } from "@/lib/types";
 
-const ev = (seq: number, type: RunEvent["type"], payload: any): RunEvent => ({
+const ev = (seq: number, type: RunEvent["type"], payload: Record<string, unknown>): RunEvent => ({
   run_id: "r1",
   seq,
   ts: seq,
@@ -91,5 +91,34 @@ describe("runReducer", () => {
     s = runReducer(s, ev(2, "error", { message: "OpenAI rate limit", fatal: true }));
     expect(s.status).toBe("error");
     expect(s.error).toBe("OpenAI rate limit");
+  });
+
+  it("stores a screenshot url and label", () => {
+    let s = runReducer(initialRunState(), planEvent);
+    s = runReducer(
+      s,
+      ev(2, "screenshot", { url: "/shots/r1/2.png", label: "Amazon receipt" }),
+    );
+    expect(s.screenshotUrl).toBe("/shots/r1/2.png");
+    expect(s.screenshotLabel).toBe("Amazon receipt");
+  });
+
+  it("defaults a screenshot event missing url/label to null instead of undefined", () => {
+    let s = runReducer(initialRunState(), planEvent);
+    s = runReducer(s, ev(2, "screenshot", {}));
+    expect(s.screenshotUrl).toBeNull();
+    expect(s.screenshotLabel).toBeNull();
+  });
+
+  it("falls back to payload.name for action activity text when text is absent", () => {
+    let s = runReducer(initialRunState(), planEvent);
+    s = runReducer(
+      s,
+      ev(2, "action", { name: "click_search_button", merchant_key: "amzn" }),
+    );
+    const last = s.activity[s.activity.length - 1];
+    expect(last.kind).toBe("action");
+    expect(last.text).toBe("click_search_button");
+    expect(last.merchant_key).toBe("amzn");
   });
 });

@@ -13,6 +13,11 @@ export interface RunEvent {
   seq: number;
   ts: number;
   type: EventType;
+  // Mirrors the backend's `dict[str, Any]` (events.py) exactly: payload
+  // shape varies per `type`, and callers narrow it by switching on `type`
+  // (see runReducer.ts), so a union of per-type payload interfaces here
+  // would just duplicate that switch without adding real safety.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   payload: Record<string, any>;
 }
 
