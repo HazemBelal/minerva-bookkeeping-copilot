@@ -70,3 +70,26 @@ export interface RunState {
   lastSeq: number;
   summary: string | null;
 }
+
+export const CATEGORIES = [
+  "Software & Subscriptions",
+  "Advertising & Marketing",
+  "Meals & Entertainment",
+  "Travel",
+  "Office Supplies",
+  "Professional Services",
+  "Bank & Payment Fees",
+  "Utilities & Telecom",
+  "Contractors & Payroll",
+  "Shipping & Postage",
+  "Equipment & Hardware",
+  "Income / Transfer In",
+  "Uncategorized",
+] as const;
+
+export const FLAG_LABELS: Record<string, string> = {
+  duplicate_charge: "Possible duplicate",
+  repeat_merchant_same_day: "Repeat charges",
+  round_amount: "Round amount",
+  unidentified_merchant: "Unidentified",
+};

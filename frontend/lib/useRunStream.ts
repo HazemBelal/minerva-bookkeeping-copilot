@@ -24,7 +24,18 @@ export function useRunStream(url: string | null): {
     source.onerror = () => setConnected(false);
     source.onmessage = (m) => {
       try {
-        dispatch(JSON.parse(m.data) as RunEvent);
+        const event = JSON.parse(m.data) as RunEvent;
+        dispatch(event);
+        // The server always closes the stream right after a `done` event.
+        // Left alone, the browser's native EventSource treats that as a
+        // dropped connection and auto-reconnects — which replays the whole
+        // run again (replay always restarts from event 0, and even the live
+        // endpoint would re-poll pointlessly). Closing here, the moment the
+        // terminal event is seen, is what actually stops the loop.
+        if (event.type === "done") {
+          source.close();
+          setConnected(false);
+        }
       } catch {
         // A malformed frame must not kill the stream.
       }

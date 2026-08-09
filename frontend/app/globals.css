@@ -12,12 +12,14 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/* Every component in this app (ledger, activity feed, controls) is styled
+   as a light-only surface: white/slate-50 cards, slate-900/slate-500 text,
+   amber/emerald/sky accents chosen for contrast on a light background.
+   The create-next-app default below auto-switched to a near-black body on
+   prefers-color-scheme: dark, which made dark-text-on-light-card components
+   (e.g. the h1, the ledger's black-on-slate-50 header) unreadable against
+   the now-black page background. Pinning to light keeps the design that was
+   actually specified and built legible regardless of OS theme. */
 
 body {
   background: var(--background);
