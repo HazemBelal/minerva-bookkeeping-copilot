@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityFeed } from "@/components/ActivityFeed";
 import { GoalInput } from "@/components/GoalInput";
 import { LedgerTable } from "@/components/LedgerTable";
@@ -32,12 +32,20 @@ export default function Home() {
 
   const { state, reset } = useRunStream(streamUrl);
 
+  // Guards the cold-open auto-replay below against a live run the user
+  // started (or is starting) while /api/runs/latest was still in flight.
+  // A ref (not the `streamUrl` state) is required here: the effect's
+  // closure is created once at mount with deps=[], so any state variable
+  // read inside its .then() callback is the value from that first render
+  // forever, not the current one. A ref's .current is always current.
+  const liveStartedRef = useRef(false);
+
   useEffect(() => {
     fetch("/api/runs/latest")
       .then((r) => r.json())
       .then((d) => {
         setSavedRunId(d.run_id);
-        if (d.run_id && !streamUrl) {
+        if (d.run_id && !liveStartedRef.current) {
           setStreamUrl(`/sse/replay/${d.run_id}`);
           setNotice(
             "Showing a saved run so you can see the result straight away. " +
@@ -72,6 +80,9 @@ export default function Home() {
   );
 
   const start = useCallback(async () => {
+    // Mark this before the request even goes out, so a cold-open replay
+    // that resolves later (see the effect above) never clobbers it.
+    liveStartedRef.current = true;
     setNotice(null);
     setApproved({});
     setOverrides({});
@@ -101,6 +112,12 @@ export default function Home() {
   );
 
   const busy = state.status === "running" || state.status === "paused";
+  // True for both the cold-open auto-replay and a manually triggered
+  // "Replay a saved run". While this is true the viewer is watching a
+  // recording, not driving the agent, so it must always be escapable —
+  // never gated on the replay having finished (state.summary only arrives
+  // on the replay's last event, which can be a minute or more away).
+  const isReplaying = streamUrl?.startsWith("/sse/replay/") ?? false;
 
   return (
     <main className="mx-auto max-w-[1400px] p-6">
@@ -113,16 +130,25 @@ export default function Home() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {savedRunId && (
+          {isReplaying ? (
             <button
-              onClick={() => {
-                newRun();
-                setStreamUrl(`/sse/replay/${savedRunId}`);
-              }}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              onClick={newRun}
+              className="rounded-lg border border-slate-900 bg-slate-900 px-3 py-2 text-sm font-medium text-white"
             >
-              Replay a saved run
+              New run — drive it live
             </button>
+          ) : (
+            savedRunId && (
+              <button
+                onClick={() => {
+                  newRun();
+                  setStreamUrl(`/sse/replay/${savedRunId}`);
+                }}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              >
+                Replay a saved run
+              </button>
+            )
           )}
           <RunControls
             status={state.status}
