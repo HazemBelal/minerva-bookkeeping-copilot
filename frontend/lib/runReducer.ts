@@ -122,7 +122,7 @@ export function runReducer(state: RunState, event: RunEvent): RunState {
     case "done": {
       return {
         ...base,
-        status: p.state === "stopped" ? "stopped" : "done",
+        status: p.state === "stopped" ? "stopped" : p.state === "error" ? "error" : "done",
         summary: p.summary ?? null,
       };
     }

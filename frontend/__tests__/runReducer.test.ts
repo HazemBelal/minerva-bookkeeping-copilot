@@ -93,6 +93,14 @@ describe("runReducer", () => {
     expect(s.error).toBe("OpenAI rate limit");
   });
 
+  it("keeps the error status when a fatal run's done event reports state error", () => {
+    let s = runReducer(initialRunState(), planEvent);
+    s = runReducer(s, ev(2, "error", { message: "OpenAI rate limit", fatal: true }));
+    s = runReducer(s, ev(3, "done", { state: "error", summary: null }));
+    expect(s.status).toBe("error");
+    expect(s.error).toBe("OpenAI rate limit");
+  });
+
   it("stores a screenshot url and label", () => {
     let s = runReducer(initialRunState(), planEvent);
     s = runReducer(
