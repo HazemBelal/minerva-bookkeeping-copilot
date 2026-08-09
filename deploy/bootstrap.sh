@@ -2,6 +2,11 @@
 set -euo pipefail
 
 DOMAIN="${DOMAIN:-srv1083267.hstgr.cloud}"
+# Not read anywhere below -- certbot is run manually, later, as a separate
+# step, and takes its own -m/--email flag then. This is only here so the
+# operator fails fast with a clear message if they forget to pass an email,
+# instead of certbot prompting interactively (and hanging, since this whole
+# flow is meant to run non-interactively) much further into the process.
 EMAIL="${EMAIL:?set EMAIL=you@example.com}"
 
 dnf -y install epel-release
@@ -57,7 +62,14 @@ fi
 
 install -d -m 700 /opt/minerva
 
-cp /opt/minerva/deploy/nginx.conf /etc/nginx/conf.d/minerva.conf 2>/dev/null || true
+# deploy/nginx.conf is a plain-HTTP base referencing no cert files, so it
+# starts nginx cleanly on a box that has never run certbot. If bootstrap is
+# ever re-run on a box that's already certified, don't clobber certbot's
+# live TLS config with this base -- same guard as deploy.sh uses.
+CERT=/etc/letsencrypt/live/${DOMAIN}/fullchain.pem
+if [ ! -f "$CERT" ]; then
+  cp /opt/minerva/deploy/nginx.conf /etc/nginx/conf.d/minerva.conf 2>/dev/null || true
+fi
 systemctl enable --now nginx
 
 echo "bootstrap complete for ${DOMAIN}"
