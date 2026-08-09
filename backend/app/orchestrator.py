@@ -87,42 +87,70 @@ async def run_pipeline(run: Run, goal: str, statement: str) -> None:
     semaphore = asyncio.Semaphore(settings.concurrency)
 
     async def work(plan) -> None:
-        async with semaphore:
-            await run.wait_if_paused()
-            if run.stop_flag:
-                return
-            _apply(run, plan.key, {"status": "researching"})
-            run.emit("reasoning", {"merchant_key": plan.key, "text": f"Researching {plan.display}."})
+        # The ENTIRE body is guarded, not just the research_merchant call:
+        # asyncio.gather() below has no return_exceptions=True, so if any
+        # exception escaped this coroutine (e.g. run.emit/_apply raising
+        # under disk pressure), gather would propagate it immediately
+        # without cancelling sibling in-flight research tasks. Those
+        # orphaned tasks would keep running and could append row_status/
+        # reasoning events to the log AFTER main.py's fatal-exception
+        # handler has already emitted `done` -- and /sse/replay has no
+        # done-break guard, so a post-done event would corrupt replay
+        # (including the golden run). Catching everything here means
+        # gather() always completes normally and `done` is only ever
+        # emitted after every research task has truly finished.
+        try:
+            async with semaphore:
+                await run.wait_if_paused()
+                if run.stop_flag:
+                    return
+                _apply(run, plan.key, {"status": "researching"})
+                run.emit("reasoning", {"merchant_key": plan.key, "text": f"Researching {plan.display}."})
+                try:
+                    finding = await research_merchant(
+                        plan.key, plan.display, run.emit, run.log.shots_dir
+                    )
+                except Exception as exc:  # noqa: BLE001 - reported, never swallowed
+                    run.emit(
+                        "error",
+                        {"merchant_key": plan.key, "message": f"{type(exc).__name__}: {exc}", "fatal": False},
+                    )
+                    finding = None
+
+                if finding is None:
+                    _apply(run, plan.key, {
+                        "status": "needs_review",
+                        "note": (
+                            f"Could not verify this merchant within "
+                            f"{settings.max_steps_per_merchant} browser steps"
+                        ),
+                    })
+                    return
+
+                _apply(run, plan.key, {
+                    "status": "done",
+                    "merchant": finding.merchant,
+                    "category": finding.category,
+                    "confidence": finding.confidence,
+                    "source_url": finding.source_url or None,
+                    "source": "web",
+                    "reasoning": finding.reasoning or finding.what_they_do,
+                })
+        except Exception as exc:  # noqa: BLE001 - must never escape gather()
+            # Best-effort report-and-degrade. Wrapped again: if run.emit/
+            # _apply themselves are what failed above, this recovery path
+            # must not raise a second time and defeat the whole point.
             try:
-                finding = await research_merchant(
-                    plan.key, plan.display, run.emit, run.log.shots_dir
-                )
-            except Exception as exc:  # noqa: BLE001 - reported, never swallowed
                 run.emit(
                     "error",
                     {"merchant_key": plan.key, "message": f"{type(exc).__name__}: {exc}", "fatal": False},
                 )
-                finding = None
-
-            if finding is None:
                 _apply(run, plan.key, {
                     "status": "needs_review",
-                    "note": (
-                        f"Could not verify this merchant within "
-                        f"{settings.max_steps_per_merchant} browser steps"
-                    ),
+                    "note": "Unexpected error while researching this merchant",
                 })
-                return
-
-            _apply(run, plan.key, {
-                "status": "done",
-                "merchant": finding.merchant,
-                "category": finding.category,
-                "confidence": finding.confidence,
-                "source_url": finding.source_url or None,
-                "source": "web",
-                "reasoning": finding.reasoning or finding.what_they_do,
-            })
+            except Exception:  # noqa: BLE001 - genuinely nothing more we can do
+                pass
 
     await asyncio.gather(*(work(p) for p in to_research))
 
