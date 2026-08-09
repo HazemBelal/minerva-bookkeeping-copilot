@@ -6,6 +6,7 @@ venv/
 node_modules/
 .next/
 data/
-backend/runs/
+backend/runs/*
 !backend/runs/golden/
 .pytest_cache/
+tools/

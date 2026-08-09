@@ -35,8 +35,18 @@ export default function Home() {
   useEffect(() => {
     fetch("/api/runs/latest")
       .then((r) => r.json())
-      .then((d) => setSavedRunId(d.run_id))
+      .then((d) => {
+        setSavedRunId(d.run_id);
+        if (d.run_id && !streamUrl) {
+          setStreamUrl(`/sse/replay/${d.run_id}`);
+          setNotice(
+            "Showing a saved run so you can see the result straight away. " +
+              "Press New run to drive the agent live.",
+          );
+        }
+      })
       .catch(() => setSavedRunId(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Clears the viewer back to the input without a page reload. A reload would
@@ -71,7 +81,11 @@ export default function Home() {
       body: JSON.stringify({ goal, statement }),
     });
     if (!res.ok) {
-      setNotice((await res.json().catch(() => ({}))).detail ?? "Could not start the run.");
+      const body = await res.json().catch(() => null);
+      setNotice(
+        body?.detail ??
+          "Could not start a run right now. The saved run above still works.",
+      );
       return;
     }
     const { run_id } = await res.json();
