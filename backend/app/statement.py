@@ -39,7 +39,15 @@ def merchant_key(description: str) -> str:
     tokens = [t for t in text.split() if t]
 
     if tokens and tokens[0] in _PROCESSOR_PREFIXES:
-        tokens = tokens[1:]
+        # A processor/network token (e.g. "mc", "sp", "pp") is only a real
+        # prefix when the ORIGINAL descriptor shows it in the actual
+        # processor pattern -- immediately followed by "*" (optionally with
+        # a space), like "SQ*", "TST*", "SP *". Otherwise it is just the
+        # first word of a real merchant name (e.g. "MC DONALDS") and must be
+        # kept.
+        prefix_pattern = re.compile(rf"^\s*{re.escape(tokens[0])}\s*\*", re.IGNORECASE)
+        if prefix_pattern.match(description):
+            tokens = tokens[1:]
 
     cleaned: list[str] = []
     for token in tokens:

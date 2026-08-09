@@ -47,6 +47,15 @@ def test_merchant_key_keeps_genuinely_different_merchants_apart():
     assert merchant_key("SQSP* INV") != merchant_key("STRIPE TRANSFER")
 
 
+def test_merchant_key_only_strips_starred_processor_prefixes():
+    # A bare generic-prefix word with no "*" pattern is a real merchant name
+    # (e.g. McDonald's), not a processor prefix -- must not be stripped down
+    # to just "donalds".
+    assert "mc" in merchant_key("MC DONALDS 4471").split()
+    # A genuinely starred processor prefix still strips as before.
+    assert "sq" not in merchant_key("SQ*BLUE BOTTLE").split()
+
+
 def test_merchant_key_is_lowercase_and_has_no_punctuation():
     key = merchant_key("PADDLE.NET* FIGMA")
     assert key == key.lower()

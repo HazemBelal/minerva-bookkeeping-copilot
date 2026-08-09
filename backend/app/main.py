@@ -10,6 +10,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from .config import settings
 from .events import Event
+from .llm import MODEL as LLM_MODEL
 from .runs import Run, RunStore
 
 app = FastAPI(title="Bookkeeping Copilot")
@@ -34,8 +35,8 @@ def sse_frame(event: Event) -> dict:
 async def health() -> dict:
     return {
         "ok": True,
-        "model": settings.openai_model,
-        "key_configured": bool(settings.openai_api_key),
+        "model": LLM_MODEL,
+        "provider": settings.llm_base_url,
         "busy": store.lock.locked(),
     }
 

@@ -11,8 +11,10 @@ load_dotenv()
 
 @dataclass(frozen=True)
 class Settings:
-    openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
-    openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4o")
+    llm_base_url: str = os.getenv("LLM_BASE_URL", "http://localhost:11434/v1")
+    llm_model: str = os.getenv("LLM_MODEL", "qwen2.5:14b")
+    llm_api_key: str = os.getenv("LLM_API_KEY", "ollama")
+    llm_use_vision: bool = os.getenv("LLM_USE_VISION", "true").lower() == "true"
     runs_dir: Path = Path(os.getenv("RUNS_DIR", "runs"))
     max_steps_per_merchant: int = int(os.getenv("MAX_STEPS_PER_MERCHANT", "6"))
     max_merchants: int = int(os.getenv("MAX_MERCHANTS", "8"))
