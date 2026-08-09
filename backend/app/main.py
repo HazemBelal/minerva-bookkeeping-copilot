@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
-from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -47,15 +45,17 @@ async def create_run(
     body: RunRequest, request: Request, background: BackgroundTasks
 ) -> JSONResponse:
     ip = request.headers.get("x-forwarded-for", request.client.host).split(",")[0].strip()
+    # Check "busy" before consuming a rate-limit unit: a 409 means no run was
+    # created, so it must not cost the caller part of their hourly quota.
+    if store.lock.locked():
+        raise HTTPException(
+            409, "The agent is busy with another run. Watch the saved run, or try again shortly."
+        )
     if not store.rate_limit_ok(ip):
         raise HTTPException(
             429,
             f"Rate limit reached: {settings.runs_per_ip_per_hour} runs per hour. "
             "You can still replay the saved run.",
-        )
-    if store.lock.locked():
-        raise HTTPException(
-            409, "The agent is busy with another run. Watch the saved run, or try again shortly."
         )
     run = store.create()
     background.add_task(_execute, run, body.goal, body.statement)
@@ -110,8 +110,14 @@ async def stream_run(run_id: str, request: Request, from_seq: int = 0) -> EventS
         queue = run.subscribe()
         try:
             # Catch up from disk first so a reload or reconnect loses nothing.
+            # This loop awaits on every yield (socket write), so the orchestrator
+            # can emit() into the live queue while we're still draining disk —
+            # track the highest seq we've sent and skip anything <= it below,
+            # so a race here produces no duplicate, only a redundant queue item.
+            last_seq = start
             for event in run.log.read_from(start):
                 yield sse_frame(event)
+                last_seq = event.seq
             if run.finished:
                 return
             while True:
@@ -122,6 +128,9 @@ async def stream_run(run_id: str, request: Request, from_seq: int = 0) -> EventS
                 except asyncio.TimeoutError:
                     yield {"event": "ping", "data": "{}"}
                     continue
+                if event.seq <= last_seq:
+                    continue
+                last_seq = event.seq
                 yield sse_frame(event)
                 if event.type == "done":
                     break
