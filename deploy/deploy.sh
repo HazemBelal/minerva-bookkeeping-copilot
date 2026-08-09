@@ -1,5 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
+# Everything runs inside this brace group so bash parses the whole script
+# into memory before executing any of it. `git pull` a few lines down
+# rewrites this very file on disk; without this wrapper, bash can resume
+# reading mid-script from the NEW file's bytes at the OLD file's byte
+# offset once the pull lands, executing whatever ends up there instead of
+# the rest of THIS run's intended commands. (Hit this for real: an
+# unguarded pre-fix copy of this script raced its own `git pull` and
+# clobbered the live TLS config with a newly-pulled HTTP-only nginx.conf
+# mid-deploy. Restored by hand; this wrapper is the fix.)
+{
 cd /opt/minerva
 source /etc/minerva-compose.env
 
@@ -34,3 +45,4 @@ fi
 
 $COMPOSE up -d --build
 $COMPOSE ps
+}
