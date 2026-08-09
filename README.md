@@ -6,8 +6,6 @@ unrecognized merchant live in a real browser, assigns an expense category with
 a confidence level and a clickable source, flags anomalies, and produces a
 categorized ledger the accountant can approve, override, and export.
 
-**Live demo:** `<ngrok URL to be filled in at submission — see "Hosting" below>`
-
 ---
 
 ## What it does
