@@ -45,6 +45,26 @@ def _fresh_store(tmp_path, monkeypatch, **kwargs) -> RunStore:
     return store
 
 
+async def _stub_pipeline(run, goal, statement):
+    """Fast, deterministic double for the real `run_pipeline` (Task 8 wires
+    it up to a live LLM planner and a real browser researcher). The
+    pause/stop tests below exercise the control-endpoint <-> Run plumbing
+    (pause_event, stop_flag, the global run lock) -- not orchestrator
+    internals -- so they swap this in rather than depending on Ollama/a
+    browser being up, or waiting minutes for a real research pass. This is
+    the same shape as the pre-Task-8 orchestrator stub the tests were
+    originally written against.
+    """
+    for i in range(3):
+        await run.wait_if_paused()
+        if run.stop_flag:
+            break
+        run.emit("reasoning", {"text": f"stub step {i}"})
+        await asyncio.sleep(1)
+    run.state = "stopped" if run.stop_flag else "done"
+    run.emit("done", {"state": run.state, "summary": "stub complete"})
+
+
 async def _never_resolving_receive():
     await asyncio.sleep(10_000)
     return {"type": "http.request"}  # pragma: no cover - never reached
@@ -145,6 +165,7 @@ async def test_pause_blocks_progress_and_resume_continues(tmp_path, monkeypatch)
     lives.
     """
     store = _fresh_store(tmp_path, monkeypatch)
+    monkeypatch.setattr("app.orchestrator.run_pipeline", _stub_pipeline)
     run = store.create("pause-run")
     task = asyncio.create_task(main_module._execute(run, "test", "s"))
     transport = httpx.ASGITransport(app=app)
@@ -182,6 +203,7 @@ async def test_pause_blocks_progress_and_resume_continues(tmp_path, monkeypatch)
 @pytest.mark.asyncio
 async def test_stop_short_circuits_the_run(tmp_path, monkeypatch):
     store = _fresh_store(tmp_path, monkeypatch)
+    monkeypatch.setattr("app.orchestrator.run_pipeline", _stub_pipeline)
     run = store.create("stop-run")
     task = asyncio.create_task(main_module._execute(run, "test", "s"))
     transport = httpx.ASGITransport(app=app)
