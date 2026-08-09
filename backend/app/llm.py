@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import TypeVar
 
 from openai import AsyncOpenAI
@@ -14,6 +15,8 @@ from .config import settings
 client = AsyncOpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
 MODEL = settings.llm_model
 USE_VISION = settings.llm_use_vision
+
+logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -38,8 +41,13 @@ async def structured_completion(system: str, user: str, schema: type[T]) -> T | 
         parsed = resp.choices[0].message.parsed
         if parsed is not None:
             return parsed
-    except Exception:
-        pass  # fall through to JSON-mode fallback
+    except Exception as exc:
+        # Could be a genuine schema-support gap (older Ollama) OR an
+        # operational failure (bad LLM_API_KEY, unreachable LLM_BASE_URL, the
+        # demo's Cloudflare tunnel dropping). Either way, fall through to the
+        # JSON-mode fallback -- but log it so an outage is visible in server
+        # logs instead of silently degrading every merchant to "needs_research".
+        logger.warning("structured_completion .parse() failed, falling back: %s", exc)
 
     schema_json = schema.model_json_schema()
     fallback_messages = [
@@ -62,4 +70,9 @@ async def structured_completion(system: str, user: str, schema: type[T]) -> T | 
         content = resp.choices[0].message.content or ""
         return schema.model_validate_json(content)
     except Exception:
+        # Total failure -- both the structured-output path and the JSON-mode
+        # fallback failed. Log with a full traceback: this is the case that
+        # otherwise degrades silently into "every merchant needs research,"
+        # indistinguishable downstream from the model legitimately punting.
+        logger.exception("structured_completion fallback also failed")
         return None

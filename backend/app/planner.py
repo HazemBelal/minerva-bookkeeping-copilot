@@ -15,6 +15,14 @@ For each distinct merchant key you are given, decide ONE of:
   - needs_research = true: the descriptor is ambiguous, obscure, or you are
     not confident. A browser agent will look it up.
 
+A descriptor that is abbreviated, truncated, or carries a billing/processor
+code (e.g. "sqsp", "sp", "amzn", "tst", store numbers, invoice IDs) must be
+needs_research = true even if you believe you can decode which brand it
+refers to -- confirm it by research rather than pattern-matching the
+abbreviation. Reserve needs_research = false only for descriptors that spell
+out a globally-recognized brand name in full (e.g. "GOOGLE", "UBER",
+"STARBUCKS").
+
 Prefer needs_research = true when you are unsure. A wrong confident answer is
 far worse than a slower correct one.
 
